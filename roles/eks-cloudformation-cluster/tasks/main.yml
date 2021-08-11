@@ -1,0 +1,204 @@
+---
+#Either create or delete an EKS Cluster using eks-quickstart cloudformation templates
+
+- name: Run Role if Clusters are defined
+  block:
+    #Create SSH Keypair
+    - name: create key pair using provided key_material
+      amazon.aws.ec2_key:
+        name: "{{KEYPAIRNAME}}"
+        region: "{{item.value.AWS_REGION}}"
+        key_material: "{{SSH_KEYPAIR_MATERIAL}}"
+      loop: "{{ query('dict', CLUSTER_INFO) }}"
+
+    ###################  TODO: Enable Custom VPC Situation ###################################
+    # - name: Determine if we need to create VPC's for EKS
+    #   vars:
+    #     AWS_REGION: "{{item.value.AWS_REGION }}"
+    #     STACK_NAME: "{{item.value.STACK_NAME }}"
+    #   include_tasks:
+    #     file: vpc-check-create.yaml
+    #     apply:
+    #       tags:
+    #         - vpc-create
+    #   when: VPC_ID == ""
+    #   loop: "{{ lookup('dict', CLUSTER_INFO) }}"
+    #   tags:
+    #     - vpc-creation
+
+    # - name: "Print VPC-REGION-LIST"
+    #   debug:
+    #     msg: "{{ item.key }} = {{ item.value }}"
+    #   with_dict: "{{ VPC_REGION_DICT }}"
+
+    #The Cloud formation template in use requires there be 1 cluster that is first in stack in that region
+    # I have set this as eks-cluster-1 i.e each region must have a base cluster for mine
+    # I am using eks-cluster1 and it must exist as it is required by the cloudformation stack
+
+    - name: Determine if EKS Cluster Exists if not create It
+      vars:
+        AWS_REGION: "{{item.value.AWS_REGION }}"
+        STACK_NAME: "{{item.value.STACK_NAME }}"
+      include_tasks:
+        file: eks-create-standard.yaml
+        apply:
+          tags:
+            - eks-create-cluster
+      loop: "{{ query('dict', CLUSTER_INFO) }}"
+      when: item.value.STACK_NAME == MAIN_CLUSTER_NAME
+
+    - name: Check Main Clusters sync status
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      loop: "{{ EKS_CLUSTER_JOBS }}"
+      register: async_poll_results
+      until: async_poll_results.finished
+      retries: 100
+      delay: 45
+      when: item is defined
+
+    - name: Clear Job List
+      set_fact:
+        EKS_CLUSTER_JOBS: []
+
+    - name: Determine if EKS Cluster Exists if not create It(Secondary Cluster)
+      vars:
+        AWS_REGION: "{{item.value.AWS_REGION }}"
+        STACK_NAME: "{{item.value.STACK_NAME }}"
+      include_tasks:
+        file: eks-create-existing-vpc.yaml
+        apply:
+          tags:
+            - eks-create-cluster
+      loop: "{{ query('dict', CLUSTER_INFO) }}"
+      when: item.value.STACK_NAME != MAIN_CLUSTER_NAME
+
+    - name: Check Secondary Clusters sync status
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      loop: "{{ EKS_CLUSTER_JOBS }}"
+      register: async_poll_results
+      until: async_poll_results.finished
+      retries: 100
+      delay: 45
+      when: item is defined
+
+    - name: Create Region List Filter
+      set_fact:
+        REGION_LIST_STACK: "{{ REGION_LIST_STACK | default([]) + [item.value.STACK_NAME + '-' + item.value.AWS_REGION] }}"
+      loop: "{{ query('dict', CLUSTER_INFO) }}"
+
+    - name: debug Regionlist stack
+      debug:
+        msg: "{{ item }}"
+        verbosity: 0
+      loop: "{{ REGION_LIST_STACK }}"
+
+    - name: Get CloudFormation Stacks across all regions
+      vars:
+        PRESENT_REGION: "{{ item }}"
+      include_tasks:
+        file: get-cloudformation-stacks.yaml
+      loop: "{{ REGION_LIST }}"
+
+    # - name: Update Cloudformation List
+    #   set_fact:
+    #     CLOUDFORMATION_LIST: "{{ CLOUDFORMATION_LIST | combine({ item.key: {'ansible_filter': item.value.stack_description.stack_name + '-' + item.value.stack_description.stack_id.split(':')[3]}},recursive=true) }}"
+    #   loop: "{{ lookup('dict', CLOUDFORMATION_LIST) }}"
+
+    - name: Determine if EKS Cluster should not exist and delete(Secondary Cluster)
+      vars:
+        AWS_REGION: "{{ item.value.stack_description.stack_id.split(':')[3] }}"
+        STACK_NAME: "{{ item.value.stack_description.stack_name }}"
+      include_tasks:
+        file: eks-delete-cluster.yaml
+        apply:
+          tags:
+            - eks-delete-cluster
+      loop: "{{ query('dict', CLOUDFORMATION_LIST) }}"
+      when:
+        - item.value.stack_tags.Stack is defined
+        - item.key not in REGION_LIST_STACK
+        - item.value.stack_tags.Stack == STACK_TAG_NAME
+        - item.value.stack_description.stack_name != MAIN_CLUSTER_NAME
+
+    - name: Check Secondary Clusters delete job
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      loop: "{{ EKS_CLUSTER_JOBS }}"
+      register: async_poll_results
+      until: async_poll_results.finished
+      retries: 100
+      delay: 45
+      when: item is defined
+
+    - name: Clear Job List
+      set_fact:
+        EKS_CLUSTER_JOBS: []
+
+    - name: Determine if EKS Cluster should not exist and delete(Primary Cluster)
+      vars:
+        AWS_REGION: "{{ item.value.stack_description.stack_id.split(':')[3] }}"
+        STACK_NAME: "{{ item.value.stack_description.stack_name }}"
+      include_tasks:
+        file: eks-delete-cluster.yaml
+        apply:
+          tags:
+            - eks-delete-cluster
+      loop: "{{ query('dict', CLOUDFORMATION_LIST) }}"
+      when:
+        - item.value.stack_tags.Stack is defined
+        - item.key not in REGION_LIST_STACK
+        - item.value.stack_tags.Stack == STACK_TAG_NAME
+        - item.value.stack_description.stack_name == MAIN_CLUSTER_NAME
+
+    - name: Check Primary Clusters delete job
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      loop: "{{ EKS_CLUSTER_JOBS }}"
+      register: async_poll_results
+      until: async_poll_results.finished
+      retries: 100
+      delay: 45
+      when: item is defined
+  when: 
+    - CLUSTER_INFO is defined
+    - CLUSTER_INFO.keys()|length > 0
+
+- name: Delete all clusters we provisioned
+  block:
+    - name: Get CloudFormation Stacks across all regions
+      vars:
+        PRESENT_REGION: "{{ item }}"
+      include_tasks:
+        file: get-cloudformation-stacks.yaml
+      loop: "{{ REGION_LIST }}"
+
+    - name: Clear Job List
+      set_fact:
+        EKS_CLUSTER_JOBS: []
+
+    - name: Determine Stacks we need to delete and delete
+      vars:
+        AWS_REGION: "{{ item.value.stack_description.stack_id.split(':')[3] }}"
+        STACK_NAME: "{{ item.value.stack_description.stack_name }}"
+      include_tasks:
+        file: eks-delete-cluster.yaml
+        apply:
+          tags:
+            - eks-delete-cluster
+      loop: "{{ query('dict', CLOUDFORMATION_LIST) }}"
+      when:
+        - item.value.stack_tags.Stack is defined
+        - item.value.stack_tags.Stack == STACK_TAG_NAME
+
+    - name: Check Delete All CLusters Job
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      loop: "{{ EKS_CLUSTER_JOBS }}"
+      register: async_poll_results
+      until: async_poll_results.finished
+      retries: 100
+      delay: 45
+      when: item is defined
+  when: (CLUSTER_INFO is not defined) or (CLUSTER_INFO.keys()|length == 0)

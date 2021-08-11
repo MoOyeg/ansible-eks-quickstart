@@ -1,0 +1,71 @@
+---
+- name: Debug VPC Action Type
+  debug:
+    msg: "Will check if VPC is present with Tag {{STACK_TAG_NAME}} and {{ 'create' if ROLE_USAGE == 'create' else 'delete' }} if {{ 'not' if ROLE_USAGE == 'create' else '' }} present"
+
+- name: Check VPC Status
+  amazon.aws.ec2_vpc_net_info:
+    region: "{{AWS_REGION}}"
+    filters:
+      "tag:Stack": "{{STACK_TAG_NAME}}"
+  register: vpc_output
+
+- name: Update Region-VPC list
+  set_fact:
+    VPC_REGION_DICT: "{{ VPC_REGION_DICT | combine({AWS_REGION: vpc_output.vpcs[0].vpc_id }) }}"
+  when: vpc_output.vpcs != []
+
+- name: Create Job-Name for async
+  set_fact:
+    JOB_NAME: "{{STACK_NAME}}-vpc_creation"
+
+- name: VPC Creation
+  amazon.aws.cloudformation:
+    stack_name: "{{STACK_NAME}}-vpc"
+    state: "{{ 'absent' if ROLE_USAGE == 'delete' else 'present' }}"
+    capabilities: "{{ANSIBLE_AWS_CAPABILITES}}"
+    region: "{{AWS_REGION}}"
+    on_create_failure: "{{CREATE_FAILURE_ACTION}}"
+    template_url: "{{NEW_VPC_TEMPLATE_URL}}"
+    template_parameters:
+      VpcBlock: "{{VPCBLOCK}}"
+      PublicSubnet01Block: "{{PUBLICSUBNET01BLOCK}}"
+      PublicSubnet02Block: "{{PUBLICSUBNET02BLOCK}}"
+      PrivateSubnet01Block: "{{PRIVATESUBNET01BLOCK}}"
+      PrivateSubnet02Block: "{{PRIVATESUBNET02BLOCK}}"
+    tags:
+      Stack: "{{STACK_TAG_NAME}}"
+  tags:
+    - create-cluster
+    - delete-cluster
+  when: vpc_output.vpcs == []
+  async: 15000
+  poll: 0
+  register: vpc_creation_job
+
+- name: Waiting for VPC Creation to Complete
+  async_status:
+    jid: "{{ vpc_creation_job.ansible_job_id }}"
+  register: job_result
+  when: vpc_output.vpcs == []
+  until: job_result.finished
+  retries: 100
+  delay: 30
+
+- name: Check VPC Status Again
+  amazon.aws.ec2_vpc_net_info:
+    region: "{{AWS_REGION}}"
+    filters:
+      "tag:Stack": "{{STACK_TAG_NAME}}"
+  register: vpc_output_new
+  when: vpc_output.vpcs == []
+
+- name: Update Region-VPC list
+  set_fact:
+    VPC_REGION_DICT: "{{ VPC_REGION_DICT | combine({ AWS_REGION: vpc_output_new.vpcs[0].vpc_id }) }}"
+  when: vpc_output.vpcs == []
+
+# - name: "Print VPC-REGION-LIST"
+#   debug:
+#     msg: "{{ item.key }} = {{ item.value }}"
+#   with_dict: "{{ VPC_REGION_DICT }}"

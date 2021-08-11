@@ -1,0 +1,174 @@
+---
+- name: Debug Cluster Action Type
+  debug:
+    msg: "Will {{ 'create' if ROLE_USAGE == 'create' else 'delete' }} Cluster {{STACK_NAME}}"
+
+- name: Get summary information about a stack
+  amazon.aws.cloudformation_info:
+    stack_name: "{{STACK_NAME}}"
+    region: "{{AWS_REGION}}"
+  register: output
+
+- name: Check VPC Status
+  amazon.aws.ec2_vpc_net_info:
+    region: "{{AWS_REGION}}"
+    filters:
+      "tag:Stack": "{{STACK_TAG_NAME}}"
+  register: vpc_output
+
+- name: Create EKS Stack
+  block:
+    - name: Update Region-VPC list
+      set_fact:
+        VPC_REGION_DICT: "{{ VPC_REGION_DICT| default({}) | combine({AWS_REGION: vpc_output.vpcs[0].vpc_id }) }}"
+
+    - name: Update Region-VPC list
+      set_fact:
+        VPC_REGION_ID: "{{VPC_REGION_DICT[AWS_REGION]}}"
+
+    - name: "Get Public Subnet01-ID for Region"
+      amazon.aws.ec2_vpc_subnet_info:
+        region: "{{AWS_REGION}}"
+        filters:
+          vpc-id: "{{VPC_REGION_ID}}"
+          "tag:aws:cloudformation:logical-id": "PublicSubnet1"
+      register: PUBLICSUBNETID01
+
+    - name: "Get Public Subnet02-ID for Region"
+      amazon.aws.ec2_vpc_subnet_info:
+        region: "{{AWS_REGION}}"
+        filters:
+          vpc-id: "{{VPC_REGION_ID}}"
+          "tag:aws:cloudformation:logical-id": "PublicSubnet2"
+      register: PUBLICSUBNETID02
+
+    - name: "Get Public Subnet03-ID for Region"
+      amazon.aws.ec2_vpc_subnet_info:
+        region: "{{AWS_REGION}}"
+        filters:
+          vpc-id: "{{VPC_REGION_ID}}"
+          "tag:aws:cloudformation:logical-id": "PublicSubnet3"
+      register: PUBLICSUBNETID03
+
+    - name: "Get Private Subnet01-ID for Region"
+      amazon.aws.ec2_vpc_subnet_info:
+        region: "{{AWS_REGION}}"
+        filters:
+          vpc-id: "{{VPC_REGION_ID}}"
+          "tag:aws:cloudformation:logical-id": "PrivateSubnet1A"
+      register: PRIVATESUBNETID01
+
+    - name: "Get Private Subnet02-ID for Region"
+      amazon.aws.ec2_vpc_subnet_info:
+        region: "{{AWS_REGION}}"
+        filters:
+          vpc-id: "{{VPC_REGION_ID}}"
+          "tag:aws:cloudformation:logical-id": "PrivateSubnet2A"
+      register: PRIVATESUBNETID02
+
+    - name: "Get Private Subnet03-ID for Region"
+      amazon.aws.ec2_vpc_subnet_info:
+        region: "{{AWS_REGION}}"
+        filters:
+          vpc-id: "{{VPC_REGION_ID}}"
+          "tag:aws:cloudformation:logical-id": "PrivateSubnet3A"
+      register: PRIVATESUBNETID03
+
+    - name: Declare Zone List
+      set_fact:
+        REGION_ZONE: "{{ REGION_ZONE|default([])}}"
+
+    - name: Get Availibility Zone PUBLICSUBNETID01
+      set_fact:
+        REGION_ZONE: "{{ REGION_ZONE + [PUBLICSUBNETID01.subnets[0].availability_zone] }}"
+
+    - name: Get Availibility Zone PUBLICSUBNETID02
+      set_fact:
+        REGION_ZONE: "{{ REGION_ZONE + [PUBLICSUBNETID02.subnets[0].availability_zone] }}"
+
+    - name: Get Availibility Zone PUBLICSUBNETID03
+      set_fact:
+        REGION_ZONE: "{{ REGION_ZONE + [PUBLICSUBNETID03.subnets[0].availability_zone] }}"
+
+    - name: Get Availibility Zone PRIVATESUBNETID01
+      set_fact:
+        REGION_ZONE: "{{ REGION_ZONE + [PRIVATESUBNETID01.subnets[0].availability_zone] }}"
+
+    - name: Get Availibility Zone PRIVATESUBNETID02
+      set_fact:
+        REGION_ZONE: "{{ REGION_ZONE + [PRIVATESUBNETID02.subnets[0].availability_zone] }}"
+
+    - name: Get Availibility Zone PRIVATESUBNETID03
+      set_fact:
+        REGION_ZONE: "{{ REGION_ZONE + [PRIVATESUBNETID03.subnets[0].availability_zone] }}"
+
+    - name: Unique Availibility Zone list
+      set_fact:
+        REGION_ZONE: "{{ REGION_ZONE | unique}}"
+
+    - name: Gather information about all availability zones
+      amazon.aws.aws_az_info:
+        region: "{{ AWS_REGION}}"
+      register: aws_az_list
+
+    - name: Clear Zones
+      set_fact:
+        TEMP_AWS_AVAILIBILITY_ZONES: []
+
+    - name: Set Zones
+      set_fact:
+        TEMP_AWS_AVAILIBILITY_ZONES: "{{ TEMP_AWS_AVAILIBILITY_ZONES + [az_item.zone_name] }}"
+      loop: "{{ aws_az_list['availability_zones']}}"
+      loop_control:
+        loop_var: "az_item"
+
+    - name: Concatenate the public keys
+      set_fact:
+        AWS_AVAILIBILITY_ZONES: "{{ TEMP_AWS_AVAILIBILITY_ZONES[0:AVAIL_ZONE_COUNT] | join(',') }}"
+
+    - name: Stack Modification Action
+      amazon.aws.cloudformation:
+        stack_name: "{{STACK_NAME}}"
+        state: present
+        capabilities: "{{ANSIBLE_AWS_CAPABILITES}}"
+        region: "{{AWS_REGION}}"
+        #    on_create_failure: "{{CREATE_FAILURE_ACTION}}"
+        template_url: "{{EXISTING_VPC_AND_EKS_TEMPLATE_URL}}"
+        template_parameters:
+          KeyPairName: "{{KEYPAIRNAME}}"
+          RemoteAccessCIDR: "{{REMOTEACCESSCIDR}}"
+          VPCID: "{{VPC_REGION_ID}}"
+          PrivateSubnet1ID: "{{PRIVATESUBNETID01.subnets[0].id}}"
+          PrivateSubnet2ID: "{{PRIVATESUBNETID02.subnets[0].id}}"
+          PrivateSubnet3ID: "{{PRIVATESUBNETID03.subnets[0].id}}"
+          PublicSubnet1ID: "{{PUBLICSUBNETID01.subnets[0].id}}"
+          PublicSubnet2ID: "{{PUBLICSUBNETID02.subnets[0].id}}"
+          PublicSubnet3ID: "{{PUBLICSUBNETID03.subnets[0].id}}"
+          EKSClusterName: "{{STACK_NAME}}"
+          ProvisionBastionHost: "Disabled"
+          EKSPublicAccessEndpoint: Enabled
+        tags:
+          Stack: "{{STACK_TAG_NAME}}"
+      tags:
+        - create-cluster
+        - delete-cluster
+      async: 45000
+      poll: 0
+      register: eks_creation_job
+
+    # - name: Waiting for EKS Cluster Creation/Deletion to Complete
+    #   async_status:
+    #     jid: "{{ eks_creation_job.ansible_job_id }}"
+    #   register: job_result
+    #   until: job_result.finished
+    #   retries: 100
+    #   delay: 30
+
+    - name: Set Job JID
+      set_fact:
+        EKS_CLUSTER_JOBS: "{{ EKS_CLUSTER_JOBS + [eks_creation_job] }}"
+
+  when:
+    - vpc_output.vpcs != []
+    - output.cloudformation == {}
+    - STACK_NAME != "eks-cluster-1"

@@ -1,0 +1,43 @@
+---
+# defaults file for eks-create-cluster
+ROLE_USAGE: create
+CLUSTER_STATUS: present
+KEYPAIRNAME: my_keypair
+CREATE_FAILURE_ACTION: DO_NOTHING
+#CREATE_FAILURE_ACTION: ROLLBACK
+REMOTEACCESSCIDR: 0.0.0.0/0
+#AWS_AVAILIBILITY_ZONES: "us-east-1a, us-east-1b, us-east-1c"
+#AWS_REGION: "us-east-1"
+SSH_KEYPAIR_MATERIAL: ""
+#This template is the eks quickstart template that will create a new vpc
+#See more info here https://aws-quickstart.github.io/quickstart-amazon-eks/
+NEW_VPC_TEMPLATE_URL: https://s3.us-west-2.amazonaws.com/amazon-eks/cloudformation/2020-10-29/amazon-eks-vpc-private-subnets.yaml
+NEW_VPC_AND_EKS_TEMPLATE_URL: https://s3.amazonaws.com/aws-quickstart/quickstart-amazon-eks/templates/amazon-eks-entrypoint-new-vpc.template.yaml
+EXISTING_VPC_AND_EKS_TEMPLATE_URL: https://s3.amazonaws.com/aws-quickstart/quickstart-amazon-eks/templates/amazon-eks-entrypoint-existing-vpc.template.yaml
+ADVANCED_EKS_CONFIGURATION: https://s3.amazonaws.com/aws-quickstart/quickstart-amazon-eks/templates/amazon-eks-advanced-configuration.template.yaml
+ANSIBLE_AWS_CAPABILITES:
+  - CAPABILITY_IAM
+  - CAPABILITY_NAMED_IAM
+  - CAPABILITY_AUTO_EXPAND
+VPC_ID: ""
+STACK_TAG_NAME: "ansible-eks-stack"
+VPCBLOCK: "192.168.0.0/16"
+PUBLICSUBNET01BLOCK: "192.168.0.0/18"
+PUBLICSUBNET02BLOCK: "192.168.64.0/18"
+PRIVATESUBNET01BLOCK: "192.168.128.0/18"
+PRIVATESUBNET02BLOCK: "192.168.192.0/18"
+REGION_LIST: ["us-west-1", "us-east-1", "us-east-2", "us-west-2"]
+EKS_CLUSTER_JOBS: []
+AVAIL_ZONE_COUNT: 3
+#KubernetesVersion
+#EKSPublicAccessCIDRs
+#EKSPrivateAccessEndpoint
+#EKSClusterLoggingTypes
+#EKSEncryptSecrets
+#EKSEncryptSecretsKmsKeyArn
+#IamOidcProvider
+
+#The Main cluster is the cluster that has an EKS VPC created for it
+#It is the cluster that the VPC is created with and the subnets are provisioned
+#Can be set here but must also exist in cluster list provided
+MAIN_CLUSTER_NAME: "eks-cluster-1"

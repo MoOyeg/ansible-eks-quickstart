@@ -1,0 +1,27 @@
+- name: Get summary information about a stack
+  amazon.aws.cloudformation_info:
+    region: "{{ PRESENT_REGION }}"
+  register: output
+
+# - name: Set Cloudformation Object
+#   set_fact:
+#     CLOUDFORMATION_LIST: "{{ CLOUDFORMATION_LIST | default({}) | combine(output.cloudformation) }}"
+#   when:
+#     - output.cloudformation != {}
+
+- name: debugA
+  debug:
+    msg: "{{ cf_item }}"
+  loop: "{{ query('dict', output.cloudformation) }}"
+  loop_control:
+    loop_var: "cf_item"
+
+- name: Set Cloudformation Object
+  set_fact:
+    CLOUDFORMATION_LIST: "{{ CLOUDFORMATION_LIST | default({}) | combine( {cf_item.value.stack_description.stack_name + '-' + cf_item.value.stack_description.stack_id.split(':')[3]:cf_item.value },recursive=true) }}"
+  loop: "{{ query('dict', output.cloudformation) }}"
+  loop_control:
+    loop_var: "cf_item"
+  when:
+    - output.cloudformation != {}
+    - cf_item.value.stack_description.parent_id is not defined

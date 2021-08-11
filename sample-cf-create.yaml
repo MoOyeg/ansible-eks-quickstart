@@ -1,0 +1,32 @@
+---
+- name: EKS Installation Test
+  vars:
+    CLUSTER_INFO:
+      eks-cluster-1:
+        STACK_NAME: eks-cluster-1
+        AWS_REGION: us-west-2
+      # eks-cluster-2:
+      #   STACK_NAME: eks-cluster-2
+      #   AWS_REGION: us-west-2
+      # eks-cluster-3:
+      #   STACK_NAME: eks-cluster-2
+      #   AWS_REGION: us-west-1
+      # eks-cluster-4:
+      #   STACK_NAME: eks-cluster-2
+      #   AWS_REGION: us-east-1
+  hosts:
+    - localhost
+  tasks:
+    - name: eks-clouformation-create
+      vars:
+        # AWS_ACCESS_KEY: Required
+        # AWS_SECRET_ACCESS_KEY: Required
+        REMOTEACCESSCIDR: 0.0.0.0/0
+        SSH_KEYPAIR_MATERIAL: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC+WeAPEhSDXffGZ7kPVWRtOYp4LnusDxSfGV5bwqGodKFa5p5dqcw8nZ9/pvhGzbiNRrNhQDR2PLN4RqKpCM6kuZsOyP3v0+ItiZJzQi0fOJOTYKvgHYyzX44f52tVGjYrb22nYdo0iEpNpHpndizy9wucfwNGGpWVJnvV/0ze7NY8gifRTNAtFr5xhR7OCIO7Cd0CmamCkskAZGkuL8kywCGrX1l2rlvwOHzaxsbc0BqIA3FUA3FRB0MUUyLQIYLcnI3508A78Trzmjv1ZX6dM1h7GzwX+8UX0UlIVGRBoY2SubsJectAXPmflEX6PDcqXB6UGxBjRQg0HMBYqTZmEI1x8rOkHzAMvM2MCdbtfdfX5AuwLGpVtp9Xl6ijeVed/Fw8okN+xFaxruPHeG0JRvqGJgTng/B42ZdkqpKIot9bfY9hixtPyHh9rEb3eg7k8WHfEC1g+HenWsb+ddA3k4mNVsgWBbxfLYg6N/6xwElyPxaT7qkiwcBmjVASxJE= moyos@LAPTOP-GFBTSESU"
+        ROLE_USAGE: create
+        KEYPAIRNAME: my_keypair
+      include_role:
+        name: eks-cloudformation-cluster
+      tags:
+        - create-eks-cloudformation
+

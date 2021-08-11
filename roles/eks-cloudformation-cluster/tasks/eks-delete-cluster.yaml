@@ -1,0 +1,23 @@
+---
+- name: find all existing IAM roles
+  community.aws.iam_role_info:
+    region: "{{AWS_REGION}}"
+  register: role_result
+
+
+
+
+- name: Stack Modification Action
+  amazon.aws.cloudformation:
+    stack_name: "{{STACK_NAME}}"
+    state: absent
+    region: "{{AWS_REGION}}"
+  register: eks_deletion_job
+  tags:
+    - delete-cluster
+  async: 45000
+  poll: 0
+
+- name: Set Job JID
+  set_fact:
+    EKS_CLUSTER_JOBS: "{{ EKS_CLUSTER_JOBS + [eks_deletion_job] }}"

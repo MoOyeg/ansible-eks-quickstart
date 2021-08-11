@@ -1,0 +1,6 @@
+# tasks file for eks-create-cluster
+- name: create key pair using provided key_material
+  amazon.aws.ec2_key:
+    name: "{{KEYPAIRNAME}}"
+    region: "{{AWS_REGION}}"
+    key_material: "{{SSH_KEYPAIR_MATERIAL}}"

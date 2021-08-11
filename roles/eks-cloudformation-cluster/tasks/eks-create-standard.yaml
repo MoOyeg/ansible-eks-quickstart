@@ -1,0 +1,98 @@
+---
+- name: Get summary information about a stack
+  amazon.aws.cloudformation_info:
+    stack_name: "{{STACK_NAME}}"
+    region: "{{AWS_REGION}}"
+  register: output
+
+- name: Debug Cluster Action Type
+  debug:
+    msg: "Will {{ 'create' if ROLE_USAGE == 'create' else 'delete' }} Cluster {{STACK_NAME}} in region {{AWS_REGION}}"
+  when: output.cloudformation == {}
+
+- name: Create EKS Stack
+  block:
+    - name: Gather information about all availability zones
+      amazon.aws.aws_az_info:
+        region: "{{ AWS_REGION}}"
+      register: aws_az_list
+
+    - name: Clear Zones
+      set_fact:
+        TEMP_AWS_AVAILIBILITY_ZONES: []
+
+    - name: Set Zones
+      set_fact:
+        TEMP_AWS_AVAILIBILITY_ZONES: "{{ TEMP_AWS_AVAILIBILITY_ZONES + [az_item.zone_name] }}"
+      loop: "{{ aws_az_list['availability_zones']}}"
+      loop_control:
+        loop_var: "az_item"
+
+    - name: Concatenate the public keys
+      set_fact:
+        AWS_AVAILIBILITY_ZONES: "{{ TEMP_AWS_AVAILIBILITY_ZONES[0:AVAIL_ZONE_COUNT] | join(',') }}"
+
+    # - name: Create Config-Set Cloudformation
+    #   amazon.aws.cloudformation:
+    #     stack_name: "config-{{STACK_NAME}}"
+    #     state: present
+    #     capabilities: "{{ANSIBLE_AWS_CAPABILITES}}"
+    #     region: "{{AWS_REGION}}"
+    #     on_create_failure: "{{CREATE_FAILURE_ACTION}}"
+    #     template_url: "{{ADVANCED_EKS_CONFIGURATION}}"
+    #     template_parameters:
+    #       KeyPairName: "{{KEYPAIRNAME}}"
+    #       RemoteAccessCIDR: "{{REMOTEACCESSCIDR}}"
+    #       AvailabilityZones: "{{AWS_AVAILIBILITY_ZONES}}"
+    #       EKSClusterName: "{{STACK_NAME}}"
+    #       # NumberOfNodes: "{{AVAIL_ZONE_COUNT}}"
+    #       # MaxNumberOfNodes: "{{AVAIL_ZONE_COUNT}}"
+    #       # NumberOfAZs: "{{AVAIL_ZONE_COUNT}}"
+    #     tags:
+    #       Stack: "{{STACK_TAG_NAME}}"
+    #   register: eks_creation_job
+    #   tags:
+    #     - create-cluster
+    #     - delete-cluster
+    #   async: 45000
+    #   poll: 0
+
+    - name: Stack Modification Action
+      amazon.aws.cloudformation:
+        stack_name: "{{STACK_NAME}}"
+        state: present
+        capabilities: "{{ANSIBLE_AWS_CAPABILITES}}"
+        region: "{{AWS_REGION}}"
+        on_create_failure: "{{CREATE_FAILURE_ACTION}}"
+        template_url: "{{NEW_VPC_AND_EKS_TEMPLATE_URL}}"
+        template_parameters:
+          KeyPairName: "{{KEYPAIRNAME}}"
+          RemoteAccessCIDR: "{{REMOTEACCESSCIDR}}"
+          AvailabilityZones: "{{AWS_AVAILIBILITY_ZONES}}"
+          EKSClusterName: "{{STACK_NAME}}"
+          EKSPublicAccessEndpoint: Enabled
+          NumberOfNodes: "{{AVAIL_ZONE_COUNT}}"
+          MaxNumberOfNodes: "{{AVAIL_ZONE_COUNT}}"
+          NumberOfAZs: "{{AVAIL_ZONE_COUNT}}"
+        tags:
+          Stack: "{{STACK_TAG_NAME}}"
+      register: eks_creation_job
+      tags:
+        - create-cluster
+        - delete-cluster
+      async: 45000
+      poll: 0
+
+    # - name: Waiting for EKS Cluster Creation to Complete
+    #   async_status:
+    #     jid: "{{ eks_creation_job.ansible_job_id }}"
+    #   register: job_result
+    #   when: output.cloudformation == {}
+    #   until: job_result.finished
+    #   retries: 100
+    #   delay: 30
+
+    - name: Set Job JID
+      set_fact:
+        EKS_CLUSTER_JOBS: "{{ EKS_CLUSTER_JOBS + [eks_creation_job] }}"
+  when: output.cloudformation == {}
