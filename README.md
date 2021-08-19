@@ -31,7 +31,7 @@ Notes:
 - By default MAIN_CLUSTER_NAME is eks-cluster-1 you can change it by setting the MAIN_CLUSTER_NAME via the --extra-args option and also set CLUSTER_INFO
 
 e.g
-ansible-playbook /root/ansible-jj-pot/sample-cf-create.yaml -e MAIN_CLUSTER_NAME=eks-cluster
+ansible-playbook /root/ansible-eks-quickstart/sample-cf-create.yaml -e MAIN_CLUSTER_NAME=eks-cluster
 
 - To delete a cluster remove it from the CLUSTER_INFO variable
 - To delete all clusters set CLUSTER_INFO variable to empty --extra-args CLUSTER_INFO={}
