@@ -13,16 +13,22 @@ pip install --user -r requirements.txt
 
 1. Clone this repository
 
-2. Make your [AWS account credentials](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys) (`AWS_ACCESS_KEY` and `AWS_SECRET_KEY`) available as environment variables (`export`).
+2 Install requirements
+
+```bash
+pip install --user -r requirements.txt
+```
+
+3. Make your [AWS account credentials](https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys) (`AWS_ACCESS_KEY` and `AWS_SECRET_KEY`) available as environment variables (`export`).
 
 ```bash
 export AWS_ACCESS_KEY='...'
 export AWS_SECRET_KEY='...'
 ```
 
-3 Use the sample create file to create or delete your eks-cluster:
+4 Use the sample create file to create or delete your eks-cluster:
   
-  ansible-playbook /root/ansible-eks-quickstart/sample-cf-create.yaml
+  ansible-playbook ./sample-cf-create.yaml
 
 Notes:
 
