@@ -13,7 +13,7 @@ pip install --user -r requirements.txt
 
 1. Clone this repository
 
-2 Install requirements
+2. Install requirements  
 
 ```bash
 pip install --user -r requirements.txt
