@@ -4,7 +4,7 @@
     CLUSTER_INFO:
       eks-cluster-1:
         STACK_NAME: eks-cluster-1
-        AWS_REGION: us-west-2
+        AWS_REGION: us-east-1
       # eks-cluster-2:
       #   STACK_NAME: eks-cluster-2
       #   AWS_REGION: us-west-2

@@ -72,7 +72,6 @@
           EKSClusterName: "{{STACK_NAME}}"
           EKSPublicAccessEndpoint: Enabled
           NumberOfNodes: "{{AVAIL_ZONE_COUNT}}"
-          MaxNumberOfNodes: "{{AVAIL_ZONE_COUNT}}"
           NumberOfAZs: "{{AVAIL_ZONE_COUNT}}"
         tags:
           Stack: "{{STACK_TAG_NAME}}"
